@@ -77,6 +77,13 @@ app.post('/api/generate', async (req, res) => {
       throw new Error(`API Error (${response.status}): ${errorMsg}`);
     }
 
+    // Check if prediction failed
+    if (data.status === 'failed' || data.status === 'canceled') {
+      const errorMsg = data.error || data.detail || 'Prediction failed';
+      console.log('Prediction failed:', JSON.stringify(data, null, 2));
+      throw new Error(`Generation failed: ${errorMsg}`);
+    }
+
     // Check if prediction is still processing
     if (data.status && (data.status === 'starting' || data.status === 'processing')) {
       // If using Prefer: wait, this shouldn't happen, but handle it anyway
@@ -111,10 +118,16 @@ app.post('/api/generate', async (req, res) => {
       throw new Error('Prediction timed out');
     }
 
-    // Check if output exists
-    if (!data.output) {
+    // Check if output exists and status is succeeded
+    if (data.status !== 'succeeded') {
+      console.log('Unexpected status:', data.status);
       console.log('Full response:', JSON.stringify(data, null, 2));
-      throw new Error(`No output in API response. Status: ${data.status || 'unknown'}`);
+      throw new Error(`Unexpected status: ${data.status}. ${data.error || ''}`);
+    }
+
+    if (!data.output) {
+      console.log('No output in response:', JSON.stringify(data, null, 2));
+      throw new Error('No output in API response. The generation may have failed.');
     }
 
     res.json(data);
