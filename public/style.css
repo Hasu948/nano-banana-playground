@@ -458,13 +458,13 @@ body {
   flex: 1;
   background: var(--bg-secondary);
   overflow-y: auto;
-  padding: 16px;
+  padding: 8px;
 }
 
 .grid-container {
   display: grid;
   grid-template-columns: repeat(var(--grid-columns, 4), 1fr);
-  gap: 16px;
+  gap: 8px;
   min-height: 100%;
 }
 
