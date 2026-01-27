@@ -77,10 +77,44 @@ app.post('/api/generate', async (req, res) => {
       throw new Error(`API Error (${response.status}): ${errorMsg}`);
     }
 
+    // Check if prediction is still processing
+    if (data.status && (data.status === 'starting' || data.status === 'processing')) {
+      // If using Prefer: wait, this shouldn't happen, but handle it anyway
+      const predictionId = data.id;
+      console.log('Prediction still processing, polling for result...');
+      
+      // Poll for result
+      let attempts = 0;
+      const maxAttempts = 60; // 5 minutes max
+      
+      while (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds
+        
+        const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+          headers: {
+            'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const pollData = await pollResponse.json();
+        
+        if (pollData.status === 'succeeded' && pollData.output) {
+          return res.json(pollData);
+        } else if (pollData.status === 'failed' || pollData.status === 'canceled') {
+          throw new Error(pollData.error || 'Prediction failed');
+        }
+        
+        attempts++;
+      }
+      
+      throw new Error('Prediction timed out');
+    }
+
     // Check if output exists
     if (!data.output) {
-      console.log('Full response:', JSON.stringify(data));
-      throw new Error('No output in API response');
+      console.log('Full response:', JSON.stringify(data, null, 2));
+      throw new Error(`No output in API response. Status: ${data.status || 'unknown'}`);
     }
 
     res.json(data);
