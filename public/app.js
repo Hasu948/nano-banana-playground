@@ -215,6 +215,90 @@ window.removeImage = removeImage;
 
 // Track active tasks
 let activeTasks = 0;
+let requestQueue = [];
+let isProcessingQueue = false;
+
+// Add request to queue and process
+function queueRequest(requestData) {
+  return new Promise((resolve, reject) => {
+    requestQueue.push({ ...requestData, resolve, reject });
+    processQueue();
+  });
+}
+
+// Process queue with rate limiting
+async function processQueue() {
+  if (isProcessingQueue || requestQueue.length === 0) return;
+  
+  isProcessingQueue = true;
+  
+  while (requestQueue.length > 0) {
+    const request = requestQueue.shift();
+    
+    try {
+      const result = await executeRequest(request);
+      request.resolve(result);
+    } catch (err) {
+      request.reject(err);
+    }
+    
+    // Wait 1.5 seconds between requests to avoid rate limiting
+    if (requestQueue.length > 0) {
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+  
+  isProcessingQueue = false;
+}
+
+// Execute single request with retry
+async function executeRequest(requestData, retryCount = 0) {
+  const maxRetries = 3;
+  
+  try {
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt: requestData.prompt,
+        resolution: requestData.resolution,
+        aspect_ratio: requestData.aspect_ratio,
+        output_format: requestData.output_format,
+        safety_filter_level: requestData.safety_filter_level,
+        image_input: requestData.image_input
+      })
+    });
+    
+    const data = await response.json();
+    
+    // Handle rate limiting
+    if (response.status === 429 || (data.error && data.error.includes('429'))) {
+      if (retryCount < maxRetries) {
+        const waitTime = Math.pow(2, retryCount + 1) * 1000; // Exponential backoff: 2s, 4s, 8s
+        console.log(`Rate limited, retrying in ${waitTime/1000}s...`);
+        await new Promise(r => setTimeout(r, waitTime));
+        return executeRequest(requestData, retryCount + 1);
+      }
+      throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+    }
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to generate image');
+    }
+    
+    return data;
+  } catch (err) {
+    // Retry on network errors
+    if (retryCount < maxRetries && err.message.includes('fetch')) {
+      const waitTime = Math.pow(2, retryCount + 1) * 1000;
+      await new Promise(r => setTimeout(r, waitTime));
+      return executeRequest(requestData, retryCount + 1);
+    }
+    throw err;
+  }
+}
 
 // Generate Image
 async function generateImage() {
@@ -246,26 +330,15 @@ async function generateImage() {
   updateButtonState();
   
   try {
-    const response = await fetch('/api/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        prompt: currentPrompt,
-        resolution: currentSettings.resolution,
-        aspect_ratio: currentSettings.aspect_ratio,
-        output_format: currentSettings.output_format,
-        safety_filter_level: currentSettings.safety_filter_level,
-        image_input: currentImages
-      })
+    // Use queue system for rate limiting
+    const data = await queueRequest({
+      prompt: currentPrompt,
+      resolution: currentSettings.resolution,
+      aspect_ratio: currentSettings.aspect_ratio,
+      output_format: currentSettings.output_format,
+      safety_filter_level: currentSettings.safety_filter_level,
+      image_input: currentImages
     });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to generate image');
-    }
     
     // Extract image URL from response
     let imageUrl = null;
