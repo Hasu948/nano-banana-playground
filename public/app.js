@@ -491,7 +491,7 @@ function updateLoadingItem(id, itemData) {
   
   // Update DOM
   item.innerHTML = `
-    <img src="${itemData.imageUrl}" alt="Generated image" loading="lazy">
+    <img src="${itemData.imageUrl}" alt="Generated image" loading="lazy" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;\\'>Image failed to load</div>'">
     <div class="grid-item-overlay">
       <div class="grid-item-prompt">${escapeHtml(itemData.prompt)}</div>
     </div>
