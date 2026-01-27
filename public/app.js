@@ -626,6 +626,14 @@ function tweakImage() {
     outputFormatSelect.value = item.settings.output_format || 'png';
   }
   
+  // Add the generated image to image_input
+  if (item.imageUrl) {
+    // Clear existing images first (optional - you can remove this if you want to keep them)
+    uploadedImages = [];
+    uploadedImages.push(item.imageUrl);
+    renderImagePreviews();
+  }
+  
   closeModal();
   
   // Scroll sidebar into view and highlight
@@ -648,7 +656,7 @@ function tweakImage() {
     promptInput.select();
   }, 300);
   
-  showToast('Settings loaded, modify and run again', 'success');
+  showToast('Settings and image loaded, modify and run again', 'success');
 }
 
 function deleteFromGrid() {
