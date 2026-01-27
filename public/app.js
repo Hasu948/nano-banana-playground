@@ -44,7 +44,29 @@ let uploadedImages = []; // Store base64 images
 // Initialize
 function init() {
   setupEventListeners();
+  initGridColumns();
   renderGrid();
+}
+
+// Initialize grid columns from localStorage
+function initGridColumns() {
+  const savedColumns = localStorage.getItem('gridColumns') || '4';
+  const gridSlider = document.getElementById('grid-slider');
+  const gridValue = document.getElementById('grid-value');
+  
+  if (gridSlider) {
+    gridSlider.value = savedColumns;
+    updateGridColumns(parseInt(savedColumns));
+  }
+  if (gridValue) {
+    gridValue.textContent = savedColumns;
+  }
+}
+
+// Update grid columns
+function updateGridColumns(columns) {
+  document.documentElement.style.setProperty('--grid-columns', columns);
+  localStorage.setItem('gridColumns', columns.toString());
 }
 
 // Event Listeners
@@ -119,6 +141,36 @@ function setupEventListeners() {
       updateCodeDisplay();
     });
   });
+  
+  // Appearance menu
+  const appearanceBtn = document.getElementById('appearance-btn');
+  const appearanceMenu = document.getElementById('appearance-menu');
+  const gridSlider = document.getElementById('grid-slider');
+  const gridValue = document.getElementById('grid-value');
+  
+  if (appearanceBtn && appearanceMenu) {
+    appearanceBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = appearanceMenu.style.display !== 'none';
+      appearanceMenu.style.display = isVisible ? 'none' : 'block';
+    });
+    
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!appearanceBtn.contains(e.target) && !appearanceMenu.contains(e.target)) {
+        appearanceMenu.style.display = 'none';
+      }
+    });
+  }
+  
+  // Grid slider
+  if (gridSlider && gridValue) {
+    gridSlider.addEventListener('input', (e) => {
+      const value = e.target.value;
+      gridValue.textContent = value;
+      updateGridColumns(parseInt(value));
+    });
+  }
   
   // Keyboard events
   document.addEventListener('keydown', (e) => {
