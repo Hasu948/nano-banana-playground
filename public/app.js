@@ -205,9 +205,7 @@ async function generateImage() {
   
   addLoadingItem(loadingId, currentPrompt);
   
-  // Clear uploaded images immediately so user can start new task
-  uploadedImages = [];
-  renderImagePreviews();
+  // Keep uploaded images for next generation (don't clear)
   
   // Track active tasks
   activeTasks++;
