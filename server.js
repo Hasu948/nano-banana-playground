@@ -14,15 +14,46 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static('public'));
 
+// Check token endpoint (for debugging)
+app.get('/api/check', (req, res) => {
+  res.json({ 
+    hasToken: !!REPLICATE_API_TOKEN,
+    tokenLength: REPLICATE_API_TOKEN.length
+  });
+});
+
 // API endpoint to generate images
 app.post('/api/generate', async (req, res) => {
   try {
+    // Check if token is set
+    if (!REPLICATE_API_TOKEN) {
+      throw new Error('REPLICATE_API_TOKEN is not configured');
+    }
+
     const { prompt, resolution, aspect_ratio, output_format, safety_filter_level, image_input } = req.body;
 
-    // Process image inputs - filter out base64 and keep URLs, or convert base64 to data URI
+    // Process image inputs - Replicate accepts data URIs (base64)
     let processedImages = [];
     if (image_input && Array.isArray(image_input)) {
       processedImages = image_input.filter(img => img && img.length > 0);
+    }
+
+    console.log('Generating image with prompt:', prompt);
+    console.log('Image inputs count:', processedImages.length);
+
+    const requestBody = {
+      input: {
+        prompt: prompt || 'A beautiful landscape',
+        resolution: resolution || '2K',
+        aspect_ratio: aspect_ratio || '4:3',
+        output_format: output_format || 'png',
+        safety_filter_level: safety_filter_level || 'block_only_high'
+      }
+    };
+
+    // Only add image_input if there are images
+    if (processedImages.length > 0) {
+      requestBody.input.image_input = processedImages;
     }
 
     const response = await fetch('https://api.replicate.com/v1/models/google/nano-banana-pro/predictions', {
@@ -32,22 +63,24 @@ app.post('/api/generate', async (req, res) => {
         'Content-Type': 'application/json',
         'Prefer': 'wait'
       },
-      body: JSON.stringify({
-        input: {
-          prompt: prompt || 'A beautiful landscape',
-          resolution: resolution || '2K',
-          image_input: processedImages,
-          aspect_ratio: aspect_ratio || '4:3',
-          output_format: output_format || 'png',
-          safety_filter_level: safety_filter_level || 'block_only_high'
-        }
-      })
+      body: JSON.stringify(requestBody)
     });
 
     const data = await response.json();
     
+    console.log('API Response status:', response.status);
+    console.log('API Response:', JSON.stringify(data).substring(0, 500));
+
     if (!response.ok) {
-      throw new Error(data.detail || 'API request failed');
+      // Handle different error formats
+      const errorMsg = data.detail || data.error || data.message || JSON.stringify(data);
+      throw new Error(`API Error (${response.status}): ${errorMsg}`);
+    }
+
+    // Check if output exists
+    if (!data.output) {
+      console.log('Full response:', JSON.stringify(data));
+      throw new Error('No output in API response');
     }
 
     res.json(data);
@@ -64,4 +97,5 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🎨 Nano Banana Playground running at http://localhost:${PORT}`);
+  console.log(`Token configured: ${!!REPLICATE_API_TOKEN}`);
 });
