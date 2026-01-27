@@ -122,6 +122,7 @@ function setupEventListeners() {
   
   // Keyboard events
   document.addEventListener('keydown', (e) => {
+    // Modal navigation
     if (modal.style.display !== 'none') {
       if (e.key === 'Escape') {
         closeModal();
@@ -130,6 +131,13 @@ function setupEventListeners() {
       } else if (e.key === 'ArrowRight') {
         showNextImage();
       }
+      return;
+    }
+    
+    // Global shortcut: Ctrl+Enter or Cmd+Enter to generate
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      generateImage();
     }
   });
 }
