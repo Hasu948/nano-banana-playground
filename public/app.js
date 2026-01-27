@@ -179,6 +179,9 @@ function removeImage(index) {
 // Make removeImage global
 window.removeImage = removeImage;
 
+// Track active tasks
+let activeTasks = 0;
+
 // Generate Image
 async function generateImage() {
   const prompt = promptInput.value.trim();
@@ -190,10 +193,25 @@ async function generateImage() {
   }
   
   // Add loading item to grid
-  const loadingId = Date.now();
-  addLoadingItem(loadingId, prompt || 'Image transformation');
+  const loadingId = Date.now() + Math.random();
+  const currentPrompt = prompt || 'Image transformation';
+  const currentImages = [...uploadedImages]; // Copy current images
+  const currentSettings = {
+    resolution: resolutionSelect.value,
+    aspect_ratio: aspectRatioSelect.value,
+    output_format: outputFormatSelect.value,
+    safety_filter_level: safetyFilterSelect.value
+  };
   
-  generateBtn.disabled = true;
+  addLoadingItem(loadingId, currentPrompt);
+  
+  // Clear uploaded images immediately so user can start new task
+  uploadedImages = [];
+  renderImagePreviews();
+  
+  // Track active tasks
+  activeTasks++;
+  updateButtonState();
   
   try {
     const response = await fetch('/api/generate', {
@@ -202,12 +220,12 @@ async function generateImage() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        prompt: prompt || 'Transform this image',
-        resolution: resolutionSelect.value,
-        aspect_ratio: aspectRatioSelect.value,
-        output_format: outputFormatSelect.value,
-        safety_filter_level: safetyFilterSelect.value,
-        image_input: uploadedImages
+        prompt: currentPrompt,
+        resolution: currentSettings.resolution,
+        aspect_ratio: currentSettings.aspect_ratio,
+        output_format: currentSettings.output_format,
+        safety_filter_level: currentSettings.safety_filter_level,
+        image_input: currentImages
       })
     });
     
@@ -235,27 +253,41 @@ async function generateImage() {
     // Update loading item with actual image
     updateLoadingItem(loadingId, {
       id: loadingId,
-      prompt: prompt || 'Image transformation',
+      prompt: currentPrompt,
       imageUrl: imageUrl,
       settings: {
-        resolution: resolutionSelect.value,
-        aspect_ratio: aspectRatioSelect.value,
-        output_format: outputFormatSelect.value
+        resolution: currentSettings.resolution,
+        aspect_ratio: currentSettings.aspect_ratio,
+        output_format: currentSettings.output_format
       },
       timestamp: Date.now()
     });
-    
-    // Clear uploaded images after successful generation
-    uploadedImages = [];
-    renderImagePreviews();
     
   } catch (err) {
     console.error('Generation error:', err);
     removeLoadingItem(loadingId);
     showToast(err.message, 'error');
   } finally {
-    generateBtn.disabled = false;
+    activeTasks--;
+    updateButtonState();
   }
+}
+
+// Update button state based on active tasks
+function updateButtonState() {
+  if (activeTasks > 0) {
+    generateBtn.innerHTML = `
+      <span class="run-text">Running (${activeTasks})</span>
+      <span class="run-shortcut">(ctrl+enter)</span>
+    `;
+  } else {
+    generateBtn.innerHTML = `
+      <span class="run-text">Run model</span>
+      <span class="run-shortcut">(ctrl+enter)</span>
+    `;
+  }
+  // Button is always enabled to allow multiple tasks
+  generateBtn.disabled = false;
 }
 
 // Add Loading Item to Grid
