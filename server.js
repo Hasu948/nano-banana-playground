@@ -10,13 +10,20 @@ const PORT = process.env.PORT || 3000;
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || '';
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static('public'));
 
 // API endpoint to generate images
 app.post('/api/generate', async (req, res) => {
   try {
-    const { prompt, resolution, aspect_ratio, output_format, safety_filter_level } = req.body;
+    const { prompt, resolution, aspect_ratio, output_format, safety_filter_level, image_input } = req.body;
+
+    // Process image inputs - filter out base64 and keep URLs, or convert base64 to data URI
+    let processedImages = [];
+    if (image_input && Array.isArray(image_input)) {
+      processedImages = image_input.filter(img => img && img.length > 0);
+    }
 
     const response = await fetch('https://api.replicate.com/v1/models/google/nano-banana-pro/predictions', {
       method: 'POST',
@@ -29,7 +36,7 @@ app.post('/api/generate', async (req, res) => {
         input: {
           prompt: prompt || 'A beautiful landscape',
           resolution: resolution || '2K',
-          image_input: [],
+          image_input: processedImages,
           aspect_ratio: aspect_ratio || '4:3',
           output_format: output_format || 'png',
           safety_filter_level: safety_filter_level || 'block_only_high'

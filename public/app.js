@@ -9,6 +9,12 @@ const gridContainer = document.getElementById('grid-container');
 const gridEmpty = document.getElementById('grid-empty');
 const toastContainer = document.getElementById('toast-container');
 
+// File input elements
+const fileUrlInput = document.getElementById('file-url-input');
+const fileDropZone = document.getElementById('file-drop-zone');
+const fileInput = document.getElementById('file-input');
+const imagePreviewContainer = document.getElementById('image-preview-container');
+
 // Modal Elements
 const modal = document.getElementById('image-modal');
 const modalOverlay = document.getElementById('modal-overlay');
@@ -20,6 +26,7 @@ const modalClose = document.getElementById('modal-close');
 // State
 let currentModalUrl = null;
 let gridItems = JSON.parse(localStorage.getItem('gridItems') || '[]');
+let uploadedImages = []; // Store base64 images
 
 // Initialize
 function init() {
@@ -40,6 +47,45 @@ function setupEventListeners() {
     }
   });
   
+  // File URL input
+  if (fileUrlInput) {
+    fileUrlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addImageFromUrl(fileUrlInput.value.trim());
+        fileUrlInput.value = '';
+      }
+    });
+  }
+  
+  // File drop zone
+  if (fileDropZone) {
+    fileDropZone.addEventListener('click', () => fileInput?.click());
+    
+    fileDropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      fileDropZone.classList.add('dragover');
+    });
+    
+    fileDropZone.addEventListener('dragleave', () => {
+      fileDropZone.classList.remove('dragover');
+    });
+    
+    fileDropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      fileDropZone.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+  }
+  
+  // File input
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      handleFiles(e.target.files);
+      fileInput.value = ''; // Reset to allow same file
+    });
+  }
+  
   // Modal events
   modalOverlay.addEventListener('click', closeModal);
   modalClose.addEventListener('click', closeModal);
@@ -54,19 +100,98 @@ function setupEventListeners() {
   });
 }
 
+// Handle file selection
+function handleFiles(files) {
+  if (uploadedImages.length >= 14) {
+    showToast('Maximum 14 images allowed', 'error');
+    return;
+  }
+  
+  Array.from(files).forEach(file => {
+    if (!file.type.startsWith('image/')) {
+      showToast('Only image files are allowed', 'error');
+      return;
+    }
+    
+    if (uploadedImages.length >= 14) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target.result;
+      uploadedImages.push(base64);
+      renderImagePreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Add image from URL
+function addImageFromUrl(url) {
+  if (!url) return;
+  
+  if (uploadedImages.length >= 14) {
+    showToast('Maximum 14 images allowed', 'error');
+    return;
+  }
+  
+  // Validate URL
+  try {
+    new URL(url);
+  } catch {
+    showToast('Invalid URL', 'error');
+    return;
+  }
+  
+  uploadedImages.push(url);
+  renderImagePreviews();
+  showToast('Image added', 'success');
+}
+
+// Render image previews
+function renderImagePreviews() {
+  if (!imagePreviewContainer) return;
+  
+  if (uploadedImages.length === 0) {
+    imagePreviewContainer.style.display = 'none';
+    return;
+  }
+  
+  imagePreviewContainer.style.display = 'flex';
+  imagePreviewContainer.innerHTML = uploadedImages.map((img, index) => `
+    <div class="image-preview" data-index="${index}">
+      <img src="${img}" alt="Preview ${index + 1}">
+      <button class="remove-image-btn" onclick="removeImage(${index})">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+// Remove uploaded image
+function removeImage(index) {
+  uploadedImages.splice(index, 1);
+  renderImagePreviews();
+}
+
+// Make removeImage global
+window.removeImage = removeImage;
+
 // Generate Image
 async function generateImage() {
   const prompt = promptInput.value.trim();
   
-  if (!prompt) {
-    showToast('Please enter a prompt', 'error');
+  if (!prompt && uploadedImages.length === 0) {
+    showToast('Please enter a prompt or upload an image', 'error');
     promptInput.focus();
     return;
   }
   
   // Add loading item to grid
   const loadingId = Date.now();
-  addLoadingItem(loadingId, prompt);
+  addLoadingItem(loadingId, prompt || 'Image transformation');
   
   generateBtn.disabled = true;
   
@@ -77,11 +202,12 @@ async function generateImage() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        prompt: prompt,
+        prompt: prompt || 'Transform this image',
         resolution: resolutionSelect.value,
         aspect_ratio: aspectRatioSelect.value,
         output_format: outputFormatSelect.value,
-        safety_filter_level: safetyFilterSelect.value
+        safety_filter_level: safetyFilterSelect.value,
+        image_input: uploadedImages
       })
     });
     
@@ -109,7 +235,7 @@ async function generateImage() {
     // Update loading item with actual image
     updateLoadingItem(loadingId, {
       id: loadingId,
-      prompt: prompt,
+      prompt: prompt || 'Image transformation',
       imageUrl: imageUrl,
       settings: {
         resolution: resolutionSelect.value,
@@ -118,6 +244,10 @@ async function generateImage() {
       },
       timestamp: Date.now()
     });
+    
+    // Clear uploaded images after successful generation
+    uploadedImages = [];
+    renderImagePreviews();
     
   } catch (err) {
     console.error('Generation error:', err);
