@@ -167,33 +167,121 @@
     </div>
   </div>
 
-  <!-- Image Modal -->
-  <div class="modal" id="image-modal" style="display: none;">
+  <!-- Image Detail Modal -->
+  <div class="detail-modal" id="image-modal" style="display: none;">
     <div class="modal-overlay" id="modal-overlay"></div>
-    <div class="modal-content">
-      <img id="modal-image" src="" alt="Full size image">
-      <div class="modal-actions">
-        <button class="modal-btn" id="modal-download">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Download
-        </button>
-        <button class="modal-btn" id="modal-copy">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-          Copy URL
-        </button>
-        <button class="modal-btn modal-close" id="modal-close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+    <div class="detail-content">
+      <!-- Left: Image -->
+      <div class="detail-image-section">
+        <img id="modal-image" src="" alt="Generated image">
+      </div>
+      
+      <!-- Right: Info Panel -->
+      <div class="detail-info-section">
+        <!-- Header with navigation -->
+        <div class="detail-header">
+          <div class="detail-nav">
+            <button class="nav-btn" id="modal-prev">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+            </button>
+            <span class="detail-id" id="modal-id">-</span>
+            <button class="nav-btn" id="modal-next">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+          </div>
+          <button class="close-btn" id="modal-close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- Info Content -->
+        <div class="detail-body">
+          <div class="info-row">
+            <label class="info-label">Prompt</label>
+            <p class="info-value" id="modal-prompt">-</p>
+          </div>
+          
+          <div class="info-row">
+            <label class="info-label">Status</label>
+            <span class="status-badge succeeded">Succeeded</span>
+          </div>
+          
+          <div class="info-row">
+            <label class="info-label">Model</label>
+            <a href="https://replicate.com/google/nano-banana-pro" target="_blank" class="info-link">google/nano-banana-pro</a>
+          </div>
+          
+          <div class="info-row">
+            <label class="info-label">Created</label>
+            <p class="info-value" id="modal-created">-</p>
+          </div>
+          
+          <div class="info-row">
+            <label class="info-label">Settings</label>
+            <p class="info-value info-settings" id="modal-settings">-</p>
+          </div>
+          
+          <!-- Actions -->
+          <div class="detail-actions">
+            <label class="info-label">Actions</label>
+            <div class="action-buttons">
+              <button class="action-btn" id="modal-download">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download
+              </button>
+              <button class="action-btn" id="modal-copy">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                Copy URL
+              </button>
+              <button class="action-btn" id="modal-tweak">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Tweak
+              </button>
+              <button class="action-btn action-btn-danger" id="modal-delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                Delete from grid
+              </button>
+            </div>
+          </div>
+          
+          <!-- Code Section -->
+          <div class="code-section">
+            <div class="code-tabs">
+              <button class="code-tab active" data-tab="nodejs">Node.js</button>
+              <button class="code-tab" data-tab="python">Python</button>
+              <button class="code-tab" data-tab="http">HTTP</button>
+            </div>
+            <div class="code-content">
+              <button class="copy-code-btn" id="copy-code-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+              <pre><code id="modal-code">// Code will appear here</code></pre>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

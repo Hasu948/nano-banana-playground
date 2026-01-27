@@ -22,9 +22,22 @@ const modalImage = document.getElementById('modal-image');
 const modalDownload = document.getElementById('modal-download');
 const modalCopy = document.getElementById('modal-copy');
 const modalClose = document.getElementById('modal-close');
+const modalPrev = document.getElementById('modal-prev');
+const modalNext = document.getElementById('modal-next');
+const modalPrompt = document.getElementById('modal-prompt');
+const modalCreated = document.getElementById('modal-created');
+const modalSettings = document.getElementById('modal-settings');
+const modalId = document.getElementById('modal-id');
+const modalCode = document.getElementById('modal-code');
+const modalTweak = document.getElementById('modal-tweak');
+const modalDelete = document.getElementById('modal-delete');
+const copyCodeBtn = document.getElementById('copy-code-btn');
+const codeTabs = document.querySelectorAll('.code-tab');
 
 // State
 let currentModalUrl = null;
+let currentModalIndex = -1;
+let currentCodeTab = 'nodejs';
 let gridItems = JSON.parse(localStorage.getItem('gridItems') || '[]');
 let uploadedImages = []; // Store base64 images
 
@@ -91,11 +104,32 @@ function setupEventListeners() {
   modalClose.addEventListener('click', closeModal);
   modalDownload.addEventListener('click', downloadModalImage);
   modalCopy.addEventListener('click', copyModalUrl);
+  modalPrev?.addEventListener('click', showPrevImage);
+  modalNext?.addEventListener('click', showNextImage);
+  modalTweak?.addEventListener('click', tweakImage);
+  modalDelete?.addEventListener('click', deleteFromGrid);
+  copyCodeBtn?.addEventListener('click', copyCode);
+  
+  // Code tabs
+  codeTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      codeTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentCodeTab = tab.dataset.tab;
+      updateCodeDisplay();
+    });
+  });
   
   // Keyboard events
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modal.style.display !== 'none') {
-      closeModal();
+    if (modal.style.display !== 'none') {
+      if (e.key === 'Escape') {
+        closeModal();
+      } else if (e.key === 'ArrowLeft') {
+        showPrevImage();
+      } else if (e.key === 'ArrowRight') {
+        showNextImage();
+      }
     }
   });
 }
@@ -326,8 +360,9 @@ function updateLoadingItem(id, itemData) {
     </div>
   `;
   
-  // Add click handler
-  item.addEventListener('click', () => openModal(itemData.imageUrl));
+  // Add click handler - find the index in gridItems
+  const itemIndex = gridItems.findIndex(g => g.id === itemData.id);
+  item.addEventListener('click', () => openModal(itemData.imageUrl, itemIndex));
 }
 
 // Remove Loading Item
@@ -352,7 +387,7 @@ function renderGrid() {
   
   gridEmpty.style.display = 'none';
   
-  gridItems.forEach(item => {
+  gridItems.forEach((item, index) => {
     const el = document.createElement('div');
     el.className = 'grid-item';
     el.innerHTML = `
@@ -361,23 +396,198 @@ function renderGrid() {
         <div class="grid-item-prompt">${escapeHtml(item.prompt)}</div>
       </div>
     `;
-    el.addEventListener('click', () => openModal(item.imageUrl));
+    el.addEventListener('click', () => openModal(item.imageUrl, index));
     gridContainer.appendChild(el);
   });
 }
 
 // Modal Functions
-function openModal(imageUrl) {
+function openModal(imageUrl, index) {
   currentModalUrl = imageUrl;
+  currentModalIndex = index;
+  
+  const item = gridItems[index];
+  if (!item) return;
+  
   modalImage.src = imageUrl;
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
+  
+  // Update info
+  if (modalPrompt) modalPrompt.textContent = item.prompt || '-';
+  if (modalId) modalId.textContent = String(item.id).substring(0, 12) + '...';
+  if (modalCreated) {
+    const date = new Date(item.timestamp);
+    modalCreated.textContent = date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  }
+  if (modalSettings && item.settings) {
+    modalSettings.textContent = `${item.settings.resolution} • ${item.settings.aspect_ratio} • ${item.settings.output_format}`;
+  }
+  
+  // Update code display
+  updateCodeDisplay();
+  
+  // Update nav buttons
+  updateNavButtons();
 }
 
 function closeModal() {
   modal.style.display = 'none';
   document.body.style.overflow = '';
   currentModalUrl = null;
+  currentModalIndex = -1;
+}
+
+function showPrevImage() {
+  if (currentModalIndex > 0) {
+    const prevItem = gridItems[currentModalIndex - 1];
+    openModal(prevItem.imageUrl, currentModalIndex - 1);
+  }
+}
+
+function showNextImage() {
+  if (currentModalIndex < gridItems.length - 1) {
+    const nextItem = gridItems[currentModalIndex + 1];
+    openModal(nextItem.imageUrl, currentModalIndex + 1);
+  }
+}
+
+function updateNavButtons() {
+  if (modalPrev) {
+    modalPrev.disabled = currentModalIndex <= 0;
+    modalPrev.style.opacity = currentModalIndex <= 0 ? '0.5' : '1';
+  }
+  if (modalNext) {
+    modalNext.disabled = currentModalIndex >= gridItems.length - 1;
+    modalNext.style.opacity = currentModalIndex >= gridItems.length - 1 ? '0.5' : '1';
+  }
+}
+
+function updateCodeDisplay() {
+  if (!modalCode) return;
+  
+  const item = gridItems[currentModalIndex];
+  if (!item) return;
+  
+  let code = '';
+  
+  if (currentCodeTab === 'nodejs') {
+    code = `import Replicate from "replicate";
+const replicate = new Replicate();
+
+const output = await replicate.run(
+  "google/nano-banana-pro",
+  {
+    input: {
+      prompt: "${escapeString(item.prompt)}",
+      resolution: "${item.settings?.resolution || '2K'}",
+      aspect_ratio: "${item.settings?.aspect_ratio || '16:9'}",
+      output_format: "${item.settings?.output_format || 'png'}",
+      safety_filter_level: "block_only_high"
+    }
+  }
+);
+console.log(output);`;
+  } else if (currentCodeTab === 'python') {
+    code = `import replicate
+
+output = replicate.run(
+    "google/nano-banana-pro",
+    input={
+        "prompt": "${escapeString(item.prompt)}",
+        "resolution": "${item.settings?.resolution || '2K'}",
+        "aspect_ratio": "${item.settings?.aspect_ratio || '16:9'}",
+        "output_format": "${item.settings?.output_format || 'png'}",
+        "safety_filter_level": "block_only_high"
+    }
+)
+print(output)`;
+  } else if (currentCodeTab === 'http') {
+    code = `curl -s -X POST \\
+  -H "Authorization: Bearer $REPLICATE_API_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -H "Prefer: wait" \\
+  -d '{
+    "input": {
+      "prompt": "${escapeString(item.prompt)}",
+      "resolution": "${item.settings?.resolution || '2K'}",
+      "aspect_ratio": "${item.settings?.aspect_ratio || '16:9'}",
+      "output_format": "${item.settings?.output_format || 'png'}",
+      "safety_filter_level": "block_only_high"
+    }
+  }' \\
+  https://api.replicate.com/v1/models/google/nano-banana-pro/predictions`;
+  }
+  
+  modalCode.textContent = code;
+}
+
+function escapeString(str) {
+  return str ? str.replace(/"/g, '\\"').replace(/\n/g, '\\n') : '';
+}
+
+function tweakImage() {
+  const item = gridItems[currentModalIndex];
+  if (!item) return;
+  
+  // Fill the prompt and settings from this item
+  promptInput.value = item.prompt || '';
+  if (item.settings) {
+    resolutionSelect.value = item.settings.resolution || '2K';
+    aspectRatioSelect.value = item.settings.aspect_ratio || '16:9';
+    outputFormatSelect.value = item.settings.output_format || 'png';
+  }
+  
+  closeModal();
+  promptInput.focus();
+  showToast('Settings loaded, modify and run again', 'success');
+}
+
+function deleteFromGrid() {
+  if (currentModalIndex < 0 || currentModalIndex >= gridItems.length) return;
+  
+  // Remove from array
+  gridItems.splice(currentModalIndex, 1);
+  localStorage.setItem('gridItems', JSON.stringify(gridItems));
+  
+  // Re-render grid
+  gridContainer.innerHTML = '';
+  if (gridItems.length === 0) {
+    gridEmpty.style.display = 'flex';
+    gridContainer.appendChild(gridEmpty);
+  } else {
+    gridEmpty.style.display = 'none';
+    gridItems.forEach((item, index) => {
+      const el = document.createElement('div');
+      el.className = 'grid-item';
+      el.innerHTML = `
+        <img src="${item.imageUrl}" alt="Generated image" loading="lazy">
+        <div class="grid-item-overlay">
+          <div class="grid-item-prompt">${escapeHtml(item.prompt)}</div>
+        </div>
+      `;
+      el.addEventListener('click', () => openModal(item.imageUrl, index));
+      gridContainer.appendChild(el);
+    });
+  }
+  
+  closeModal();
+  showToast('Image deleted from grid', 'success');
+}
+
+function copyCode() {
+  if (!modalCode) return;
+  
+  navigator.clipboard.writeText(modalCode.textContent)
+    .then(() => showToast('Code copied', 'success'))
+    .catch(() => showToast('Failed to copy', 'error'));
 }
 
 async function downloadModalImage() {
