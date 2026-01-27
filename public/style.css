@@ -464,11 +464,13 @@ body {
 .grid-container {
   display: grid;
   grid-template-columns: repeat(var(--grid-columns, 4), 1fr);
-  gap: 0;
-  row-gap: 0;
-  column-gap: 0;
+  gap: 0 !important;
+  row-gap: 0 !important;
+  column-gap: 0 !important;
   min-height: 100%;
   width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .grid-empty {
@@ -507,6 +509,8 @@ body {
   transition: all 0.2s ease;
   aspect-ratio: 4/3;
   width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .grid-item:hover {

@@ -490,12 +490,26 @@ function updateLoadingItem(id, itemData) {
   localStorage.setItem('gridItems', JSON.stringify(gridItems));
   
   // Update DOM
-  item.innerHTML = `
-    <img src="${itemData.imageUrl}" alt="Generated image" loading="lazy" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;\\'>Image failed to load</div>'">
-    <div class="grid-item-overlay">
-      <div class="grid-item-prompt">${escapeHtml(itemData.prompt)}</div>
-    </div>
-  `;
+  item.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = itemData.imageUrl;
+  img.alt = 'Generated image';
+  img.loading = 'lazy';
+  img.onerror = function() {
+    this.style.display = 'none';
+    const errorDiv = document.createElement('div');
+    errorDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:12px;padding:8px;text-align:center;';
+    errorDiv.textContent = 'Image failed to load';
+    item.appendChild(errorDiv);
+  };
+  item.appendChild(img);
+  const overlay = document.createElement('div');
+  overlay.className = 'grid-item-overlay';
+  const promptDiv = document.createElement('div');
+  promptDiv.className = 'grid-item-prompt';
+  promptDiv.textContent = itemData.prompt || '';
+  overlay.appendChild(promptDiv);
+  item.appendChild(overlay);
   
   // Add click handler - find the index in gridItems
   const itemIndex = gridItems.findIndex(g => g.id === itemData.id);
@@ -527,12 +541,25 @@ function renderGrid() {
   gridItems.forEach((item, index) => {
     const el = document.createElement('div');
     el.className = 'grid-item';
-    el.innerHTML = `
-      <img src="${item.imageUrl}" alt="Generated image" loading="lazy">
-      <div class="grid-item-overlay">
-        <div class="grid-item-prompt">${escapeHtml(item.prompt)}</div>
-      </div>
-    `;
+    const img = document.createElement('img');
+    img.src = item.imageUrl;
+    img.alt = 'Generated image';
+    img.loading = 'lazy';
+    img.onerror = function() {
+      this.style.display = 'none';
+      const errorDiv = document.createElement('div');
+      errorDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:12px;padding:8px;text-align:center;';
+      errorDiv.textContent = 'Image failed to load';
+      el.appendChild(errorDiv);
+    };
+    el.appendChild(img);
+    const overlay = document.createElement('div');
+    overlay.className = 'grid-item-overlay';
+    const promptDiv = document.createElement('div');
+    promptDiv.className = 'grid-item-prompt';
+    promptDiv.textContent = item.prompt || '';
+    overlay.appendChild(promptDiv);
+    el.appendChild(overlay);
     el.addEventListener('click', () => openModal(item.imageUrl, index));
     gridContainer.appendChild(el);
   });
