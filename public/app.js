@@ -627,7 +627,27 @@ function tweakImage() {
   }
   
   closeModal();
-  promptInput.focus();
+  
+  // Scroll sidebar into view and highlight
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) {
+    sidebar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    
+    // Add highlight effect
+    sidebar.style.transition = 'box-shadow 0.3s ease';
+    sidebar.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.5)';
+    
+    setTimeout(() => {
+      sidebar.style.boxShadow = '';
+    }, 1500);
+  }
+  
+  // Focus on prompt input after a short delay
+  setTimeout(() => {
+    promptInput.focus();
+    promptInput.select();
+  }, 300);
+  
   showToast('Settings loaded, modify and run again', 'success');
 }
 
