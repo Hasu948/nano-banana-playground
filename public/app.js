@@ -224,7 +224,8 @@ window.removeImage = removeImage;
 // Track active tasks
 let activeTasks = 0;
 let requestQueue = [];
-let isProcessingQueue = false;
+let activeRequests = 0;
+const MAX_CONCURRENT = 2; // Allow 2 concurrent requests
 
 // Add request to queue and process
 function queueRequest(requestData) {
@@ -234,29 +235,32 @@ function queueRequest(requestData) {
   });
 }
 
-// Process queue with rate limiting
+// Process queue with controlled concurrency
 async function processQueue() {
-  if (isProcessingQueue || requestQueue.length === 0) return;
-  
-  isProcessingQueue = true;
-  
-  while (requestQueue.length > 0) {
+  // Don't start new requests if we're at max concurrent or queue is empty
+  while (requestQueue.length > 0 && activeRequests < MAX_CONCURRENT) {
     const request = requestQueue.shift();
+    activeRequests++;
     
-    try {
-      const result = await executeRequest(request);
-      request.resolve(result);
-    } catch (err) {
-      request.reject(err);
-    }
+    // Process request asynchronously
+    executeRequest(request)
+      .then(result => {
+        request.resolve(result);
+      })
+      .catch(err => {
+        request.reject(err);
+      })
+      .finally(() => {
+        activeRequests--;
+        // Continue processing queue
+        processQueue();
+      });
     
-    // Wait 1.5 seconds between requests to avoid rate limiting
-    if (requestQueue.length > 0) {
-      await new Promise(r => setTimeout(r, 1500));
+    // Small delay between starting requests to avoid rate limiting
+    if (requestQueue.length > 0 && activeRequests < MAX_CONCURRENT) {
+      await new Promise(r => setTimeout(r, 500));
     }
   }
-  
-  isProcessingQueue = false;
 }
 
 // Execute single request with retry
