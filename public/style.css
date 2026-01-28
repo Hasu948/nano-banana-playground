@@ -199,18 +199,23 @@ body {
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
+  height: calc(100vh - 48px);
 }
 
-/* Sidebar */
+/* Sidebar - fixed left, does not scroll with page */
 .sidebar {
   width: 380px;
   min-width: 380px;
+  flex-shrink: 0;
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   height: calc(100vh - 48px);
   background: var(--bg-primary);
-  position: relative;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
 }
 
 .model-selector {
@@ -288,9 +293,10 @@ body {
   color: var(--text-muted);
 }
 
-/* Input Section */
+/* Input Section - 内容多时侧栏内部滚动，Run 按钮保持底部 */
 .input-section {
   flex: 1;
+  min-height: 0;
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -457,9 +463,10 @@ body {
   opacity: 0.8;
 }
 
-/* Main Grid */
+/* Main Grid - 右侧可独立滚动 */
 .main-grid {
   flex: 1;
+  min-height: 0;
   background: var(--bg-secondary);
   overflow-y: auto;
   padding: 0;
