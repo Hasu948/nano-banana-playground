@@ -41,6 +41,174 @@ let currentCodeTab = 'nodejs';
 let gridItems = JSON.parse(localStorage.getItem('gridItems') || '[]');
 let uploadedImages = []; // Store base64 images
 
+// -----------------------------
+// Persistent image cache (IndexedDB)
+// Purpose: keep generated images visible on future visits and prevent download failures.
+// -----------------------------
+const IMAGE_CACHE_DB = 'nanoBananaCache';
+const IMAGE_CACHE_STORE = 'images';
+
+function persistGridItems() {
+  localStorage.setItem('gridItems', JSON.stringify(gridItems));
+}
+
+function getProxiedImageUrl(url) {
+  return `/api/image?url=${encodeURIComponent(url)}`;
+}
+
+function openImageCacheDb() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) {
+      reject(new Error('IndexedDB not supported'));
+      return;
+    }
+    const req = indexedDB.open(IMAGE_CACHE_DB, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IMAGE_CACHE_STORE)) {
+        db.createObjectStore(IMAGE_CACHE_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbGet(key) {
+  const db = await openImageCacheDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_CACHE_STORE, 'readonly');
+    const store = tx.objectStore(IMAGE_CACHE_STORE);
+    const req = store.get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function idbSet(key, value) {
+  const db = await openImageCacheDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_CACHE_STORE, 'readwrite');
+    const store = tx.objectStore(IMAGE_CACHE_STORE);
+    const req = store.put(value, key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+function makeImageCacheKey(item) {
+  return `img_${String(item.id)}`;
+}
+
+async function ensureItemCached(item) {
+  if (!item?.imageUrl) return null;
+  const key = item.cachedKey || makeImageCacheKey(item);
+
+  // If already cached, just persist key.
+  try {
+    const existing = await idbGet(key);
+    if (existing instanceof Blob) {
+      if (!item.cachedKey) {
+        item.cachedKey = key;
+        persistGridItems();
+      }
+      return key;
+    }
+  } catch {
+    // ignore
+  }
+
+  const resp = await fetch(getProxiedImageUrl(item.imageUrl));
+  if (!resp.ok) throw new Error('Failed to fetch image for caching');
+  const blob = await resp.blob();
+  await idbSet(key, blob);
+  item.cachedKey = key;
+  item.cachedAt = Date.now();
+  persistGridItems();
+  return key;
+}
+
+async function getBestBlobForItem(item) {
+  if (item?.cachedKey) {
+    try {
+      const blob = await idbGet(item.cachedKey);
+      if (blob instanceof Blob) return blob;
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!item?.imageUrl) return null;
+  try {
+    const resp = await fetch(getProxiedImageUrl(item.imageUrl));
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    // Best effort: persist for future
+    try {
+      const key = item.cachedKey || makeImageCacheKey(item);
+      await idbSet(key, blob);
+      item.cachedKey = key;
+      item.cachedAt = Date.now();
+      persistGridItems();
+    } catch {
+      // ignore
+    }
+    return blob;
+  } catch {
+    return null;
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function showImageFailed(el) {
+  const errorDiv = document.createElement('div');
+  errorDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:12px;padding:8px;text-align:center;';
+  errorDiv.textContent = 'Image failed to load';
+  el.appendChild(errorDiv);
+}
+
+function mountItemImage(el, img, item) {
+  img.alt = 'Generated image';
+  img.loading = 'lazy';
+
+  img.onerror = function () {
+    this.style.display = 'none';
+    showImageFailed(el);
+  };
+
+  // Prefer cached blob (permanent); fall back to proxy URL (more reliable than direct URL).
+  if (item.cachedKey) {
+    idbGet(item.cachedKey)
+      .then((blob) => {
+        if (blob instanceof Blob) {
+          const objectUrl = URL.createObjectURL(blob);
+          img.dataset.objectUrl = objectUrl;
+          img.src = objectUrl;
+        } else {
+          img.src = getProxiedImageUrl(item.imageUrl);
+          ensureItemCached(item).catch(() => {});
+        }
+      })
+      .catch(() => {
+        img.src = getProxiedImageUrl(item.imageUrl);
+        ensureItemCached(item).catch(() => {});
+      });
+  } else {
+    img.src = getProxiedImageUrl(item.imageUrl);
+    ensureItemCached(item).catch(() => {});
+  }
+}
+
 // Initialize
 function init() {
   setupEventListeners();
@@ -487,21 +655,14 @@ function updateLoadingItem(id, itemData) {
   if (gridItems.length > 50) {
     gridItems = gridItems.slice(0, 50);
   }
-  localStorage.setItem('gridItems', JSON.stringify(gridItems));
+  persistGridItems();
+  // Cache ASAP so future visits still show images
+  ensureItemCached(itemData).catch(() => {});
   
   // Update DOM
   item.innerHTML = '';
   const img = document.createElement('img');
-  img.src = itemData.imageUrl;
-  img.alt = 'Generated image';
-  img.loading = 'lazy';
-  img.onerror = function() {
-    this.style.display = 'none';
-    const errorDiv = document.createElement('div');
-    errorDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:12px;padding:8px;text-align:center;';
-    errorDiv.textContent = 'Image failed to load';
-    item.appendChild(errorDiv);
-  };
+  mountItemImage(item, img, itemData);
   item.appendChild(img);
   const overlay = document.createElement('div');
   overlay.className = 'grid-item-overlay';
@@ -531,6 +692,10 @@ function removeLoadingItem(id) {
 
 // Render Grid from Storage
 function renderGrid() {
+  // Clear and re-mount empty state element to avoid duplicates
+  gridContainer.innerHTML = '';
+  gridContainer.appendChild(gridEmpty);
+
   if (gridItems.length === 0) {
     gridEmpty.style.display = 'flex';
     return;
@@ -542,16 +707,7 @@ function renderGrid() {
     const el = document.createElement('div');
     el.className = 'grid-item';
     const img = document.createElement('img');
-    img.src = item.imageUrl;
-    img.alt = 'Generated image';
-    img.loading = 'lazy';
-    img.onerror = function() {
-      this.style.display = 'none';
-      const errorDiv = document.createElement('div');
-      errorDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:12px;padding:8px;text-align:center;';
-      errorDiv.textContent = 'Image failed to load';
-      el.appendChild(errorDiv);
-    };
+    mountItemImage(el, img, item);
     el.appendChild(img);
     const overlay = document.createElement('div');
     overlay.className = 'grid-item-overlay';
@@ -573,7 +729,29 @@ function openModal(imageUrl, index) {
   const item = gridItems[index];
   if (!item) return;
   
-  modalImage.src = imageUrl;
+  // Prefer cached blob; fall back to proxy URL
+  modalImage.src = '';
+  if (item.cachedKey) {
+    idbGet(item.cachedKey)
+      .then((blob) => {
+        if (blob instanceof Blob) {
+          const objectUrl = URL.createObjectURL(blob);
+          modalImage.dataset.objectUrl = objectUrl;
+          modalImage.src = objectUrl;
+        } else {
+          modalImage.src = getProxiedImageUrl(item.imageUrl);
+        }
+        ensureItemCached(item).catch(() => {});
+      })
+      .catch(() => {
+        modalImage.src = getProxiedImageUrl(item.imageUrl);
+        ensureItemCached(item).catch(() => {});
+      });
+  } else {
+    modalImage.src = getProxiedImageUrl(item.imageUrl);
+    ensureItemCached(item).catch(() => {});
+  }
+
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   
@@ -605,6 +783,11 @@ function openModal(imageUrl, index) {
 function closeModal() {
   modal.style.display = 'none';
   document.body.style.overflow = '';
+  // Revoke object URL if used
+  if (modalImage?.dataset?.objectUrl) {
+    try { URL.revokeObjectURL(modalImage.dataset.objectUrl); } catch {}
+    delete modalImage.dataset.objectUrl;
+  }
   currentModalUrl = null;
   currentModalIndex = -1;
 }
@@ -711,10 +894,14 @@ function tweakImage() {
   
   // Add the generated image to image_input
   if (item.imageUrl) {
-    // Clear existing images first (optional - you can remove this if you want to keep them)
-    uploadedImages = [];
-    uploadedImages.push(item.imageUrl);
-    renderImagePreviews();
+    // Prefer cached blob -> data URL (permanent); fallback to original URL
+    (async () => {
+      const blob = await getBestBlobForItem(item);
+      const input = blob ? await blobToDataUrl(blob) : item.imageUrl;
+      uploadedImages = [];
+      uploadedImages.push(input);
+      renderImagePreviews();
+    })();
   }
   
   closeModal();
@@ -783,11 +970,13 @@ function copyCode() {
 }
 
 async function downloadModalImage() {
-  if (!currentModalUrl) return;
+  if (currentModalIndex < 0) return;
+  const item = gridItems[currentModalIndex];
+  if (!item) return;
   
   try {
-    const response = await fetch(currentModalUrl);
-    const blob = await response.blob();
+    const blob = await getBestBlobForItem(item);
+    if (!blob) throw new Error('No image data');
     const url = URL.createObjectURL(blob);
     
     const a = document.createElement('a');

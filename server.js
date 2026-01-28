@@ -137,6 +137,56 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
+// Proxy image URLs (avoid CORS + allow browser-side caching)
+// Security: only allow https://*.replicate.delivery/*
+app.get('/api/image', async (req, res) => {
+  try {
+    const rawUrl = String(req.query.url || '').trim();
+    if (!rawUrl) {
+      return res.status(400).json({ error: 'Missing url' });
+    }
+
+    let u;
+    try {
+      u = new URL(rawUrl);
+    } catch {
+      return res.status(400).json({ error: 'Invalid url' });
+    }
+
+    if (u.protocol !== 'https:') {
+      return res.status(400).json({ error: 'Only https URLs are allowed' });
+    }
+
+    const host = u.hostname.toLowerCase();
+    const isReplicateDelivery = host === 'replicate.delivery' || host.endsWith('.replicate.delivery');
+    if (!isReplicateDelivery) {
+      return res.status(400).json({ error: 'Host not allowed' });
+    }
+
+    const response = await fetch(u.toString(), {
+      // Keep it simple; the upstream is a static asset
+      headers: {
+        'User-Agent': 'nano-banana-playground'
+      }
+    });
+
+    if (!response.ok) {
+      return res.status(502).json({ error: `Upstream error: ${response.status}` });
+    }
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    // Cache in browser/CDN. The URLs are unique; caching helps "download failed" and reopens.
+    res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=604800');
+
+    const arrayBuffer = await response.arrayBuffer();
+    res.status(200).send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    console.error('Error proxying image:', err);
+    res.status(500).json({ error: 'Failed to proxy image' });
+  }
+});
+
 // Serve the main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
