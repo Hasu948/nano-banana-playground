@@ -209,6 +209,29 @@ function mountItemImage(el, img, item) {
   }
 }
 
+async function clearImageCache() {
+  try {
+    const db = await openImageCacheDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IMAGE_CACHE_STORE, 'readwrite');
+      const store = tx.objectStore(IMAGE_CACHE_STORE);
+      const req = store.clear();
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => db.close();
+    });
+    gridItems.forEach((item) => {
+      delete item.cachedKey;
+      delete item.cachedAt;
+    });
+    persistGridItems();
+    renderGrid();
+    showToast('本地图片缓存已清理', 'success');
+  } catch (err) {
+    showToast('清理失败', 'error');
+  }
+}
+
 // Initialize
 function init() {
   setupEventListeners();
@@ -337,6 +360,15 @@ function setupEventListeners() {
       const value = e.target.value;
       gridValue.textContent = value;
       updateGridColumns(parseInt(value));
+    });
+  }
+
+  // 清理本地缓存
+  const clearCacheBtn = document.getElementById('clear-cache-btn');
+  if (clearCacheBtn) {
+    clearCacheBtn.addEventListener('click', () => {
+      clearImageCache();
+      if (appearanceMenu) appearanceMenu.style.display = 'none';
     });
   }
   

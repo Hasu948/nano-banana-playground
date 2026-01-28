@@ -144,6 +144,23 @@ body {
   letter-spacing: 0.5px;
 }
 
+.clear-cache-btn {
+  margin-top: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clear-cache-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .slider-container {
   display: flex;
   align-items: center;
