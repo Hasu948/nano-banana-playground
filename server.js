@@ -46,7 +46,7 @@ app.post('/api/generate', async (req, res) => {
         prompt: prompt || 'A beautiful landscape',
         resolution: resolution || '2K',
         aspect_ratio: aspect_ratio || '4:3',
-        output_format: output_format || 'png',
+        output_format: output_format || 'jpg',
         safety_filter_level: safety_filter_level || 'block_only_high'
       }
     };

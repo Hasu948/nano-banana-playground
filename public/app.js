@@ -277,7 +277,7 @@ window.removeImage = removeImage;
 let activeTasks = 0;
 let requestQueue = [];
 let activeRequests = 0;
-const MAX_CONCURRENT = 2; // Allow 2 concurrent requests
+const MAX_CONCURRENT = 1; // 1 并发更快出图，减少排队
 
 // Add request to queue and process
 function queueRequest(requestData) {
@@ -653,7 +653,7 @@ const output = await replicate.run(
       prompt: "${escapeString(item.prompt)}",
       resolution: "${item.settings?.resolution || '2K'}",
       aspect_ratio: "${item.settings?.aspect_ratio || '16:9'}",
-      output_format: "${item.settings?.output_format || 'png'}",
+      output_format: "${item.settings?.output_format || 'jpg'}",
       safety_filter_level: "block_only_high"
     }
   }
@@ -668,7 +668,7 @@ output = replicate.run(
         "prompt": "${escapeString(item.prompt)}",
         "resolution": "${item.settings?.resolution || '2K'}",
         "aspect_ratio": "${item.settings?.aspect_ratio || '16:9'}",
-        "output_format": "${item.settings?.output_format || 'png'}",
+        "output_format": "${item.settings?.output_format || 'jpg'}",
         "safety_filter_level": "block_only_high"
     }
 )
@@ -683,7 +683,7 @@ print(output)`;
       "prompt": "${escapeString(item.prompt)}",
       "resolution": "${item.settings?.resolution || '2K'}",
       "aspect_ratio": "${item.settings?.aspect_ratio || '16:9'}",
-      "output_format": "${item.settings?.output_format || 'png'}",
+      "output_format": "${item.settings?.output_format || 'jpg'}",
       "safety_filter_level": "block_only_high"
     }
   }' \\
@@ -706,7 +706,7 @@ function tweakImage() {
   if (item.settings) {
     resolutionSelect.value = item.settings.resolution || '2K';
     aspectRatioSelect.value = item.settings.aspect_ratio || '16:9';
-    outputFormatSelect.value = item.settings.output_format || 'png';
+    outputFormatSelect.value = item.settings.output_format || 'jpg';
   }
   
   // Add the generated image to image_input
