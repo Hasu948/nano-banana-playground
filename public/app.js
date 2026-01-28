@@ -479,6 +479,9 @@ let requestQueue = [];
 let activeRequests = 0;
 const MAX_CONCURRENT = 1; // 1 并发更快出图，减少排队
 
+// Track generation start times for each loading item
+const generationStartTimes = new Map(); // id -> startTime (ms)
+
 // Add request to queue and process
 function queueRequest(requestData) {
   return new Promise((resolve, reject) => {
@@ -576,6 +579,8 @@ async function generateImage() {
   
   // Add loading item to grid
   const loadingId = Date.now() + Math.random();
+  const startTime = Date.now();
+  generationStartTimes.set(loadingId, startTime);
   const currentPrompt = prompt || 'Image transformation';
   const currentImages = [...uploadedImages]; // Copy current images
   const currentSettings = {
@@ -619,6 +624,12 @@ async function generateImage() {
       throw new Error('No image URL in response');
     }
     
+    // Calculate generation time
+    const endTime = Date.now();
+    const startTime = generationStartTimes.get(loadingId) || endTime;
+    const generationTime = Math.round((endTime - startTime) / 1000); // seconds
+    generationStartTimes.delete(loadingId);
+    
     // Update loading item with actual image
     updateLoadingItem(loadingId, {
       id: loadingId,
@@ -629,11 +640,13 @@ async function generateImage() {
         aspect_ratio: currentSettings.aspect_ratio,
         output_format: currentSettings.output_format
       },
-      timestamp: Date.now()
+      timestamp: endTime,
+      generationTime: generationTime // seconds
     });
     
   } catch (err) {
     console.error('Generation error:', err);
+    generationStartTimes.delete(loadingId);
     removeLoadingItem(loadingId);
     showToast(err.message, 'error');
   } finally {
@@ -666,21 +679,46 @@ function addLoadingItem(id, prompt) {
   const item = document.createElement('div');
   item.className = 'grid-item';
   item.id = `grid-item-${id}`;
-  item.innerHTML = `
-    <div class="grid-item-loading">
-      <div class="spinner"></div>
-      <span>Processing</span>
-    </div>
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'grid-item-loading';
+  loadingDiv.innerHTML = `
+    <div class="spinner"></div>
+    <span class="loading-text">Processing...</span>
   `;
+  item.appendChild(loadingDiv);
   
   // Insert at the beginning
   gridContainer.insertBefore(item, gridContainer.firstChild);
+  
+  // Start timer to update elapsed time
+  const startTime = generationStartTimes.get(id);
+  if (startTime) {
+    const updateTimer = () => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const textEl = loadingDiv.querySelector('.loading-text');
+      if (textEl && item.parentNode) {
+        textEl.textContent = `Processing... ${elapsed}秒`;
+      } else {
+        clearInterval(timerId);
+      }
+    };
+    const timerId = setInterval(updateTimer, 1000);
+    updateTimer(); // Initial update
+    // Store timer ID so we can clear it later
+    item.dataset.timerId = timerId;
+  }
 }
 
 // Update Loading Item with Image
 function updateLoadingItem(id, itemData) {
   const item = document.getElementById(`grid-item-${id}`);
   if (!item) return;
+  
+  // Clear timer if exists
+  if (item.dataset.timerId) {
+    clearInterval(parseInt(item.dataset.timerId));
+    delete item.dataset.timerId;
+  }
   
   // Add to storage
   gridItems.unshift(itemData);
@@ -700,7 +738,9 @@ function updateLoadingItem(id, itemData) {
   overlay.className = 'grid-item-overlay';
   const promptDiv = document.createElement('div');
   promptDiv.className = 'grid-item-prompt';
-  promptDiv.textContent = itemData.prompt || '';
+  const promptText = itemData.prompt || '';
+  const timeText = itemData.generationTime ? ` (${itemData.generationTime}秒)` : '';
+  promptDiv.textContent = promptText + timeText;
   overlay.appendChild(promptDiv);
   item.appendChild(overlay);
   
@@ -802,7 +842,8 @@ function openModal(imageUrl, index) {
     });
   }
   if (modalSettings && item.settings) {
-    modalSettings.textContent = `${item.settings.resolution} • ${item.settings.aspect_ratio} • ${item.settings.output_format}`;
+    const timeText = item.generationTime ? ` • ${item.generationTime}秒` : '';
+    modalSettings.textContent = `${item.settings.resolution} • ${item.settings.aspect_ratio} • ${item.settings.output_format}${timeText}`;
   }
   
   // Update code display
