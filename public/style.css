@@ -208,8 +208,9 @@ body {
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  height: calc(100vh - 48px);
   background: var(--bg-primary);
+  position: relative;
 }
 
 .model-selector {
@@ -420,6 +421,9 @@ body {
   background: var(--bg-primary);
   position: sticky;
   bottom: 0;
+  z-index: 10;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .run-button {
