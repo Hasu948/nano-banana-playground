@@ -388,7 +388,11 @@ function setupEventListeners() {
     });
   }
 
-  // Video URL input (Gemini)
+  // Video input (Gemini) - URL, drag/drop, file picker
+  const geminiVideoDropZone = document.getElementById('gemini-video-drop-zone');
+  const geminiVideoFileInput = document.getElementById('gemini-video-file-input');
+  const geminiVideoBrowseBtn = document.getElementById('gemini-video-browse-btn');
+
   if (videoUrlInput) {
     videoUrlInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -396,6 +400,30 @@ function setupEventListeners() {
         addVideoUrl(videoUrlInput.value.trim());
         videoUrlInput.value = '';
       }
+    });
+  }
+  if (geminiVideoBrowseBtn) {
+    geminiVideoBrowseBtn.addEventListener('click', () => geminiVideoFileInput?.click());
+  }
+  if (geminiVideoDropZone) {
+    geminiVideoDropZone.addEventListener('click', () => geminiVideoFileInput?.click());
+    geminiVideoDropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      geminiVideoDropZone.classList.add('dragover');
+    });
+    geminiVideoDropZone.addEventListener('dragleave', () => {
+      geminiVideoDropZone.classList.remove('dragover');
+    });
+    geminiVideoDropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      geminiVideoDropZone.classList.remove('dragover');
+      handleGeminiVideoFiles(e.dataTransfer.files);
+    });
+  }
+  if (geminiVideoFileInput) {
+    geminiVideoFileInput.addEventListener('change', (e) => {
+      handleGeminiVideoFiles(e.target.files);
+      geminiVideoFileInput.value = '';
     });
   }
 
@@ -1283,40 +1311,75 @@ function renderGeminiImagePreviews() {
   `).join('');
 }
 
-// Video URL management (Gemini)
+// Video management (Gemini) - supports both URLs and file uploads
+function handleGeminiVideoFiles(files) {
+  Array.from(files).forEach(file => {
+    if (!file.type.startsWith('video/')) {
+      showToast('Only video files are allowed', 'error');
+      return;
+    }
+    if (file.size > 150 * 1024 * 1024) {
+      showToast('Video too large (max 150MB). Use a URL instead.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      geminiVideos.push({ data: e.target.result, name: file.name, size: file.size });
+      renderVideoList();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function addVideoUrl(url) {
   if (!url) return;
   try { new URL(url); } catch {
     showToast('Invalid URL', 'error');
     return;
   }
-  geminiVideos.push(url);
-  renderVideoUrls();
+  geminiVideos.push({ data: url, name: url.split('/').pop() || url, size: null });
+  renderVideoList();
+  showToast('Video added', 'success');
 }
 
-function removeVideoUrl(index) {
+function removeGeminiVideo(index) {
   geminiVideos.splice(index, 1);
-  renderVideoUrls();
+  renderVideoList();
 }
-window.removeVideoUrl = removeVideoUrl;
+window.removeGeminiVideo = removeGeminiVideo;
 
-function renderVideoUrls() {
-  if (!videoUrlList) return;
+function formatFileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function renderVideoList() {
+  const container = document.getElementById('video-preview-list');
+  if (!container) return;
   if (geminiVideos.length === 0) {
-    videoUrlList.innerHTML = '';
+    container.innerHTML = '';
     return;
   }
-  videoUrlList.innerHTML = geminiVideos.map((url, index) => `
+  container.innerHTML = geminiVideos.map((v, index) => {
+    const sizeStr = v.size ? ` (${formatFileSize(v.size)})` : '';
+    const isUrl = !v.data.startsWith('data:');
+    const label = isUrl ? v.data : v.name;
+    return `
     <div class="video-url-item">
-      <span class="video-url-text" title="${escapeHtml(url)}">${escapeHtml(url)}</span>
-      <button class="video-url-remove" onclick="removeVideoUrl(${index})">
+      <svg class="video-item-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="23 7 16 12 23 17 23 7"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+      <span class="video-url-text" title="${escapeHtml(label)}">${escapeHtml(v.name)}${sizeStr}</span>
+      <button class="video-url-remove" onclick="removeGeminiVideo(${index})">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 // Gemini generation with SSE streaming
@@ -1329,7 +1392,7 @@ async function generateGemini() {
   }
 
   const images = [...geminiImages];
-  const videos = geminiVideos.filter(v => v.trim());
+  const videos = geminiVideos.map(v => v.data).filter(Boolean);
   const thinking_level = document.getElementById('thinking_level')?.value || 'low';
 
   geminiOutputText = '';

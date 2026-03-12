@@ -204,11 +204,26 @@
 
           <div class="input-group">
             <label class="input-label">videos</label>
-            <div class="video-url-input-wrapper">
-              <input type="text" id="video-url-input" class="file-url-input" placeholder="Enter a video URL and press Enter" style="border-radius: var(--radius-md); border-right: 1px solid var(--border-color);">
+            <div class="file-input-wrapper">
+              <input type="text" id="video-url-input" class="file-url-input" placeholder="Enter a video URL and press Enter">
+              <button class="file-url-btn" type="button" id="gemini-video-browse-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="23 7 16 12 23 17 23 7"/>
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                </svg>
+              </button>
             </div>
-            <div class="video-url-list" id="video-url-list"></div>
-            <span class="input-hint">Video URLs for the model to analyze (mp4, webm, etc.)</span>
+            <div class="file-drop-zone" id="gemini-video-drop-zone">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span>Or, drag video files here or click to browse</span>
+            </div>
+            <input type="file" id="gemini-video-file-input" accept="video/*" multiple style="display: none;">
+            <div class="video-preview-list" id="video-preview-list"></div>
+            <span class="input-hint">Videos for the model to analyze — upload files or paste URLs (mp4, webm, etc.)</span>
           </div>
 
           <div class="input-group">

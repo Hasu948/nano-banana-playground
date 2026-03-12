@@ -1282,6 +1282,18 @@ body {
   color: var(--error);
 }
 
+.video-item-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.video-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
 /* Responsive for Detail Modal */
 @media (max-width: 1024px) {
   .detail-info-section {
