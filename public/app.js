@@ -34,12 +34,31 @@ const modalDelete = document.getElementById('modal-delete');
 const copyCodeBtn = document.getElementById('copy-code-btn');
 const codeTabs = document.querySelectorAll('.code-tab');
 
+// Model switching elements
+const modelSelect = document.getElementById('model-select');
+const modelInfoBanana = document.getElementById('model-info-banana');
+const modelInfoGemini = document.getElementById('model-info-gemini');
+const bananaInputs = document.getElementById('banana-inputs');
+const geminiInputs = document.getElementById('gemini-inputs');
+const mainGridArea = document.getElementById('main-grid-area');
+const textOutputArea = document.getElementById('text-output-area');
+const textOutputContent = document.getElementById('text-output-content');
+const textEmpty = document.getElementById('text-empty');
+const videoUrlInput = document.getElementById('video-url-input');
+const videoUrlList = document.getElementById('video-url-list');
+const copyOutputBtn = document.getElementById('copy-output-btn');
+const clearOutputBtn = document.getElementById('clear-output-btn');
+
 // State
 let currentModalUrl = null;
 let currentModalIndex = -1;
 let currentCodeTab = 'nodejs';
 let gridItems = JSON.parse(localStorage.getItem('gridItems') || '[]');
 let uploadedImages = []; // Store base64 images
+let currentModel = 'google/nano-banana-pro';
+let geminiImages = [];
+let geminiVideos = [];
+let geminiOutputText = '';
 
 // -----------------------------
 // Persistent image cache (IndexedDB)
@@ -263,13 +282,23 @@ function updateGridColumns(columns) {
 // Event Listeners
 function setupEventListeners() {
   // Generate button
-  generateBtn.addEventListener('click', generateImage);
+  generateBtn.addEventListener('click', () => {
+    if (currentModel === 'google/gemini-3-flash') {
+      generateGemini();
+    } else {
+      generateImage();
+    }
+  });
   
   // Prompt input - generate on Ctrl+Enter or Cmd+Enter
   promptInput.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      generateImage();
+      if (currentModel === 'google/gemini-3-flash') {
+        generateGemini();
+      } else {
+        generateImage();
+      }
     }
   });
   
@@ -312,6 +341,83 @@ function setupEventListeners() {
     });
   }
   
+  // Model switching
+  if (modelSelect) {
+    modelSelect.addEventListener('change', (e) => {
+      switchModel(e.target.value);
+    });
+  }
+
+  // Gemini image input
+  const geminiImageUrlInput = document.getElementById('gemini-image-url-input');
+  const geminiImageDropZone = document.getElementById('gemini-image-drop-zone');
+  const geminiImageFileInput = document.getElementById('gemini-image-file-input');
+  const geminiImageBrowseBtn = document.getElementById('gemini-image-browse-btn');
+
+  if (geminiImageUrlInput) {
+    geminiImageUrlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addGeminiImageFromUrl(geminiImageUrlInput.value.trim());
+        geminiImageUrlInput.value = '';
+      }
+    });
+  }
+  if (geminiImageBrowseBtn) {
+    geminiImageBrowseBtn.addEventListener('click', () => geminiImageFileInput?.click());
+  }
+  if (geminiImageDropZone) {
+    geminiImageDropZone.addEventListener('click', () => geminiImageFileInput?.click());
+    geminiImageDropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      geminiImageDropZone.classList.add('dragover');
+    });
+    geminiImageDropZone.addEventListener('dragleave', () => {
+      geminiImageDropZone.classList.remove('dragover');
+    });
+    geminiImageDropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      geminiImageDropZone.classList.remove('dragover');
+      handleGeminiImageFiles(e.dataTransfer.files);
+    });
+  }
+  if (geminiImageFileInput) {
+    geminiImageFileInput.addEventListener('change', (e) => {
+      handleGeminiImageFiles(e.target.files);
+      geminiImageFileInput.value = '';
+    });
+  }
+
+  // Video URL input (Gemini)
+  if (videoUrlInput) {
+    videoUrlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addVideoUrl(videoUrlInput.value.trim());
+        videoUrlInput.value = '';
+      }
+    });
+  }
+
+  // Copy/Clear output buttons (Gemini)
+  if (copyOutputBtn) {
+    copyOutputBtn.addEventListener('click', () => {
+      if (geminiOutputText) {
+        navigator.clipboard.writeText(geminiOutputText)
+          .then(() => showToast('Output copied', 'success'))
+          .catch(() => showToast('Failed to copy', 'error'));
+      }
+    });
+  }
+  if (clearOutputBtn) {
+    clearOutputBtn.addEventListener('click', () => {
+      geminiOutputText = '';
+      if (textOutputContent) textOutputContent.textContent = '';
+      if (textEmpty) textEmpty.style.display = 'flex';
+      showToast('Output cleared', 'success');
+    });
+  }
+
   // Modal events
   modalOverlay.addEventListener('click', closeModal);
   modalClose.addEventListener('click', closeModal);
@@ -389,7 +495,11 @@ function setupEventListeners() {
     // Global shortcut: Ctrl+Enter or Cmd+Enter to generate
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      generateImage();
+      if (currentModel === 'google/gemini-3-flash') {
+        generateGemini();
+      } else {
+        generateImage();
+      }
     }
   });
 }
@@ -1092,6 +1202,224 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Model switching
+function switchModel(model) {
+  currentModel = model;
+
+  const isBanana = model === 'google/nano-banana-pro';
+  const isGemini = model === 'google/gemini-3-flash';
+
+  if (modelInfoBanana) modelInfoBanana.style.display = isBanana ? '' : 'none';
+  if (modelInfoGemini) modelInfoGemini.style.display = isGemini ? '' : 'none';
+
+  if (bananaInputs) bananaInputs.style.display = isBanana ? '' : 'none';
+  if (geminiInputs) geminiInputs.style.display = isGemini ? '' : 'none';
+
+  if (mainGridArea) mainGridArea.style.display = isBanana ? '' : 'none';
+  if (textOutputArea) textOutputArea.style.display = isGemini ? '' : 'none';
+
+  if (isBanana) {
+    promptInput.placeholder = 'A text description of the image you want to generate';
+  } else if (isGemini) {
+    promptInput.placeholder = 'Describe what you want the model to do with the video or text...';
+  }
+}
+
+// Gemini image management
+function handleGeminiImageFiles(files) {
+  Array.from(files).forEach(file => {
+    if (!file.type.startsWith('image/')) {
+      showToast('Only image files are allowed', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      geminiImages.push(e.target.result);
+      renderGeminiImagePreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function addGeminiImageFromUrl(url) {
+  if (!url) return;
+  try { new URL(url); } catch {
+    showToast('Invalid URL', 'error');
+    return;
+  }
+  geminiImages.push(url);
+  renderGeminiImagePreviews();
+  showToast('Image added', 'success');
+}
+
+function removeGeminiImage(index) {
+  geminiImages.splice(index, 1);
+  renderGeminiImagePreviews();
+}
+window.removeGeminiImage = removeGeminiImage;
+
+function renderGeminiImagePreviews() {
+  const container = document.getElementById('gemini-image-preview-container');
+  if (!container) return;
+
+  if (geminiImages.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'flex';
+  container.innerHTML = geminiImages.map((img, index) => `
+    <div class="image-preview" data-index="${index}">
+      <img src="${img}" alt="Preview ${index + 1}">
+      <button class="remove-image-btn" onclick="removeGeminiImage(${index})">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+// Video URL management (Gemini)
+function addVideoUrl(url) {
+  if (!url) return;
+  try { new URL(url); } catch {
+    showToast('Invalid URL', 'error');
+    return;
+  }
+  geminiVideos.push(url);
+  renderVideoUrls();
+}
+
+function removeVideoUrl(index) {
+  geminiVideos.splice(index, 1);
+  renderVideoUrls();
+}
+window.removeVideoUrl = removeVideoUrl;
+
+function renderVideoUrls() {
+  if (!videoUrlList) return;
+  if (geminiVideos.length === 0) {
+    videoUrlList.innerHTML = '';
+    return;
+  }
+  videoUrlList.innerHTML = geminiVideos.map((url, index) => `
+    <div class="video-url-item">
+      <span class="video-url-text" title="${escapeHtml(url)}">${escapeHtml(url)}</span>
+      <button class="video-url-remove" onclick="removeVideoUrl(${index})">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+// Gemini generation with SSE streaming
+async function generateGemini() {
+  const prompt = promptInput.value.trim();
+  if (!prompt) {
+    showToast('Please enter a prompt', 'error');
+    promptInput.focus();
+    return;
+  }
+
+  const images = [...geminiImages];
+  const videos = geminiVideos.filter(v => v.trim());
+  const thinking_level = document.getElementById('thinking_level')?.value || 'low';
+
+  geminiOutputText = '';
+  if (textOutputContent) {
+    textOutputContent.innerHTML = '<div class="text-streaming-indicator">Generating...</div>';
+  }
+  if (textEmpty) textEmpty.style.display = 'none';
+
+  generateBtn.disabled = true;
+  generateBtn.innerHTML = '<span class="run-text">Running...</span>';
+
+  const startTime = Date.now();
+
+  try {
+    const response = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, images, videos, thinking_level })
+    });
+
+    if (!response.ok && !response.headers.get('content-type')?.includes('text/event-stream')) {
+      const errData = await response.json();
+      throw new Error(errData.error || `HTTP ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let firstChunk = true;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split('\n');
+      buffer = parts.pop() || '';
+
+      let currentEvent = '';
+      for (const line of parts) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+
+          if (currentEvent === 'output') {
+            if (firstChunk) {
+              textOutputContent.innerHTML = '';
+              firstChunk = false;
+            }
+            geminiOutputText += data;
+            textOutputContent.textContent = geminiOutputText;
+            textOutputContent.scrollTop = textOutputContent.scrollHeight;
+          } else if (currentEvent === 'error') {
+            try {
+              const err = JSON.parse(data);
+              throw new Error(err.error || 'Generation failed');
+            } catch (e) {
+              if (e instanceof SyntaxError) throw new Error(data);
+              throw e;
+            }
+          }
+        }
+      }
+    }
+
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+
+    if (geminiOutputText) {
+      showToast(`Generation complete (${elapsed}s)`, 'success');
+    } else {
+      if (textOutputContent) textOutputContent.innerHTML = '';
+      if (textEmpty) textEmpty.style.display = 'flex';
+      showToast('No output generated', 'error');
+    }
+  } catch (err) {
+    console.error('Gemini error:', err);
+    if (textOutputContent && !geminiOutputText) {
+      textOutputContent.innerHTML = '';
+      if (textEmpty) textEmpty.style.display = 'flex';
+    }
+    showToast(err.message, 'error');
+  } finally {
+    generateBtn.disabled = false;
+    generateBtn.innerHTML = `
+      <span class="run-text">Run model</span>
+      <span class="run-shortcut">(ctrl+enter)</span>
+    `;
+  }
 }
 
 // Initialize on load

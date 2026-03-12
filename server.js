@@ -137,6 +137,91 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
+// API endpoint for Gemini 3 Flash (SSE streaming)
+app.post('/api/gemini', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  try {
+    if (!REPLICATE_API_TOKEN) {
+      throw new Error('REPLICATE_API_TOKEN is not configured');
+    }
+
+    const { prompt, images, videos, thinking_level } = req.body;
+    console.log('Gemini request:', { prompt: prompt?.substring(0, 100), imagesCount: images?.length, videosCount: videos?.length, thinking_level });
+
+    const input = { prompt: prompt || '' };
+    if (images && images.length > 0) input.images = images;
+    if (videos && videos.length > 0) input.videos = videos;
+    if (thinking_level) input.thinking_level = thinking_level;
+
+    const predResponse = await fetch('https://api.replicate.com/v1/models/google/gemini-3-flash/predictions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ input, stream: true })
+    });
+
+    const predData = await predResponse.json();
+    console.log('Gemini prediction created:', predData.id, 'status:', predData.status);
+
+    if (!predResponse.ok) {
+      const err = predData.detail || predData.error || JSON.stringify(predData);
+      res.write(`event: error\ndata: ${JSON.stringify({ error: String(err) })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const streamUrl = predData.urls?.stream;
+    if (!streamUrl) {
+      if (predData.output) {
+        const text = Array.isArray(predData.output) ? predData.output.join('') : String(predData.output);
+        res.write(`event: output\ndata: ${text}\n\n`);
+        res.write(`event: done\ndata: {}\n\n`);
+      } else {
+        res.write(`event: error\ndata: ${JSON.stringify({ error: 'No stream URL in response' })}\n\n`);
+      }
+      res.end();
+      return;
+    }
+
+    const streamResp = await fetch(streamUrl, {
+      headers: { 'Accept': 'text/event-stream' }
+    });
+
+    if (!streamResp.ok) {
+      res.write(`event: error\ndata: ${JSON.stringify({ error: 'Stream connection failed: ' + streamResp.status })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const reader = streamResp.body.getReader();
+    const decoder = new TextDecoder();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        res.write(chunk);
+      }
+    } catch (streamErr) {
+      console.error('Gemini stream error:', streamErr);
+    }
+
+    res.end();
+  } catch (error) {
+    console.error('Gemini error:', error);
+    try {
+      res.write(`event: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
+    } catch {}
+    res.end();
+  }
+});
+
 // Proxy image URLs (avoid CORS + allow browser-side caching)
 // Security: only allow https://*.replicate.delivery/*
 app.get('/api/image', async (req, res) => {

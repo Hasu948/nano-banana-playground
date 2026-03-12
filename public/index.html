@@ -53,13 +53,14 @@
       <aside class="sidebar">
         <!-- Model Selector -->
         <div class="model-selector">
-          <select class="model-select">
+          <select class="model-select" id="model-select">
             <option value="google/nano-banana-pro">google/nano-banana-pro</option>
+            <option value="google/gemini-3-flash">google/gemini-3-flash</option>
           </select>
         </div>
 
         <!-- Model Info -->
-        <div class="model-info">
+        <div class="model-info" id="model-info-banana">
           <div class="model-name">
             <span class="model-org">google</span> / <span class="model-title">nano-banana-pro</span>
           </div>
@@ -74,6 +75,23 @@
               Model detail
             </a>
             <span class="model-runs">10.5m runs</span>
+          </div>
+        </div>
+
+        <div class="model-info" id="model-info-gemini" style="display: none;">
+          <div class="model-name">
+            <span class="model-org">google</span> / <span class="model-title">gemini-3-flash</span>
+          </div>
+          <p class="model-desc">Google's fast multimodal model — text, video, image understanding & reasoning</p>
+          <div class="model-meta">
+            <a href="https://replicate.com/google/gemini-3-flash" target="_blank" class="model-detail-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              Model detail
+            </a>
           </div>
         </div>
 
@@ -92,6 +110,7 @@
             <span class="input-hint">A text description of the image you want to generate</span>
           </div>
 
+          <div id="banana-inputs">
           <div class="input-group">
             <label class="input-label">image_input</label>
             <div class="file-input-wrapper">
@@ -155,6 +174,53 @@
               <option value="block_low_and_above">block_low_and_above</option>
             </select>
           </div>
+          </div>
+
+          <div id="gemini-inputs" style="display: none;">
+          <div class="input-group">
+            <label class="input-label">images</label>
+            <div class="file-input-wrapper">
+              <input type="text" id="gemini-image-url-input" class="file-url-input" placeholder="Enter an image URL and press Enter">
+              <button class="file-url-btn" type="button" id="gemini-image-browse-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+              </button>
+            </div>
+            <div class="file-drop-zone" id="gemini-image-drop-zone">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span>Or, drag files here or click to browse</span>
+            </div>
+            <input type="file" id="gemini-image-file-input" accept="image/*" multiple style="display: none;">
+            <div class="image-preview-container" id="gemini-image-preview-container" style="display: none;"></div>
+            <span class="input-hint">Input images for the model to analyze (supports multiple images)</span>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label">videos</label>
+            <div class="video-url-input-wrapper">
+              <input type="text" id="video-url-input" class="file-url-input" placeholder="Enter a video URL and press Enter" style="border-radius: var(--radius-md); border-right: 1px solid var(--border-color);">
+            </div>
+            <div class="video-url-list" id="video-url-list"></div>
+            <span class="input-hint">Video URLs for the model to analyze (mp4, webm, etc.)</span>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label">thinking_level</label>
+            <select id="thinking_level" class="input-select">
+              <option value="low" selected>low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+          </div>
+
         </div>
 
         <!-- Run Button -->
@@ -167,7 +233,7 @@
       </aside>
 
       <!-- Main Grid Area -->
-      <main class="main-grid">
+      <main class="main-grid" id="main-grid-area">
         <div class="grid-container" id="grid-container">
           <!-- Grid items will be added here -->
           <div class="grid-empty" id="grid-empty">
@@ -178,6 +244,40 @@
             </svg>
             <p>Run the model to generate images</p>
             <span>Your generated images will appear here</span>
+          </div>
+        </div>
+      </main>
+
+      <!-- Text Output Area (Gemini) -->
+      <main class="main-text-output" id="text-output-area" style="display: none;">
+        <div class="text-output-wrapper">
+          <div class="text-output-toolbar">
+            <span class="text-output-title">Output</span>
+            <div class="text-output-actions">
+              <button class="text-action-btn" id="copy-output-btn" title="Copy output">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                Copy
+              </button>
+              <button class="text-action-btn" id="clear-output-btn" title="Clear output">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                Clear
+              </button>
+            </div>
+          </div>
+          <div class="text-output-content" id="text-output-content">
+            <div class="text-empty" id="text-empty">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <p>Run the model to generate text</p>
+              <span>Enter a prompt and optionally add video URLs</span>
+            </div>
           </div>
         </div>
       </main>
