@@ -37,6 +37,7 @@ const codeTabs = document.querySelectorAll('.code-tab');
 // Model switching elements
 const modelSelect = document.getElementById('model-select');
 const modelInfoBanana = document.getElementById('model-info-banana');
+const modelInfoBanana2 = document.getElementById('model-info-banana2');
 const modelInfoGemini = document.getElementById('model-info-gemini');
 const bananaInputs = document.getElementById('banana-inputs');
 const geminiInputs = document.getElementById('gemini-inputs');
@@ -667,6 +668,7 @@ async function executeRequest(requestData, retryCount = 0) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        model: requestData.model,
         prompt: requestData.prompt,
         resolution: requestData.resolution,
         aspect_ratio: requestData.aspect_ratio,
@@ -739,6 +741,7 @@ async function generateImage() {
   try {
     // Use queue system for rate limiting
     const data = await queueRequest({
+      model: currentModel,
       prompt: currentPrompt,
       resolution: currentSettings.resolution,
       aspect_ratio: currentSettings.aspect_ratio,
@@ -771,6 +774,7 @@ async function generateImage() {
     // Update loading item with actual image
     updateLoadingItem(loadingId, {
       id: loadingId,
+      model: currentModel,
       prompt: currentPrompt,
       imageUrl: imageUrl,
       settings: {
@@ -1034,6 +1038,35 @@ function updateCodeDisplay() {
   const item = gridItems[currentModalIndex];
   if (!item) return;
   
+  const itemModel = item.model || 'google/nano-banana-pro';
+  const isBanana2 = itemModel === 'google/nano-banana-2';
+
+  let inputLines, inputLinesHttp, inputLinesPy;
+  if (isBanana2) {
+    inputLines = `      prompt: "${escapeString(item.prompt)}",
+      aspect_ratio: "${item.settings?.aspect_ratio || '1:1'}"`;
+    inputLinesPy = `        "prompt": "${escapeString(item.prompt)}",
+        "aspect_ratio": "${item.settings?.aspect_ratio || '1:1'}"`;
+    inputLinesHttp = `      "prompt": "${escapeString(item.prompt)}",
+      "aspect_ratio": "${item.settings?.aspect_ratio || '1:1'}"`;
+  } else {
+    inputLines = `      prompt: "${escapeString(item.prompt)}",
+      resolution: "${item.settings?.resolution || '2K'}",
+      aspect_ratio: "${item.settings?.aspect_ratio || '16:9'}",
+      output_format: "${item.settings?.output_format || 'jpg'}",
+      safety_filter_level: "block_only_high"`;
+    inputLinesPy = `        "prompt": "${escapeString(item.prompt)}",
+        "resolution": "${item.settings?.resolution || '2K'}",
+        "aspect_ratio": "${item.settings?.aspect_ratio || '16:9'}",
+        "output_format": "${item.settings?.output_format || 'jpg'}",
+        "safety_filter_level": "block_only_high"`;
+    inputLinesHttp = `      "prompt": "${escapeString(item.prompt)}",
+      "resolution": "${item.settings?.resolution || '2K'}",
+      "aspect_ratio": "${item.settings?.aspect_ratio || '16:9'}",
+      "output_format": "${item.settings?.output_format || 'jpg'}",
+      "safety_filter_level": "block_only_high"`;
+  }
+
   let code = '';
   
   if (currentCodeTab === 'nodejs') {
@@ -1041,14 +1074,10 @@ function updateCodeDisplay() {
 const replicate = new Replicate();
 
 const output = await replicate.run(
-  "google/nano-banana-pro",
+  "${itemModel}",
   {
     input: {
-      prompt: "${escapeString(item.prompt)}",
-      resolution: "${item.settings?.resolution || '2K'}",
-      aspect_ratio: "${item.settings?.aspect_ratio || '16:9'}",
-      output_format: "${item.settings?.output_format || 'jpg'}",
-      safety_filter_level: "block_only_high"
+${inputLines}
     }
   }
 );
@@ -1057,13 +1086,9 @@ console.log(output);`;
     code = `import replicate
 
 output = replicate.run(
-    "google/nano-banana-pro",
+    "${itemModel}",
     input={
-        "prompt": "${escapeString(item.prompt)}",
-        "resolution": "${item.settings?.resolution || '2K'}",
-        "aspect_ratio": "${item.settings?.aspect_ratio || '16:9'}",
-        "output_format": "${item.settings?.output_format || 'jpg'}",
-        "safety_filter_level": "block_only_high"
+${inputLinesPy}
     }
 )
 print(output)`;
@@ -1074,14 +1099,10 @@ print(output)`;
   -H "Prefer: wait" \\
   -d '{
     "input": {
-      "prompt": "${escapeString(item.prompt)}",
-      "resolution": "${item.settings?.resolution || '2K'}",
-      "aspect_ratio": "${item.settings?.aspect_ratio || '16:9'}",
-      "output_format": "${item.settings?.output_format || 'jpg'}",
-      "safety_filter_level": "block_only_high"
+${inputLinesHttp}
     }
   }' \\
-  https://api.replicate.com/v1/models/google/nano-banana-pro/predictions`;
+  https://api.replicate.com/v1/models/${itemModel}/predictions`;
   }
   
   modalCode.textContent = code;
@@ -1233,22 +1254,40 @@ function escapeHtml(text) {
 }
 
 // Model switching
+const IMAGE_MODELS = ['google/nano-banana-pro', 'google/nano-banana-2'];
+
 function switchModel(model) {
   currentModel = model;
 
-  const isBanana = model === 'google/nano-banana-pro';
+  const isImageModel = IMAGE_MODELS.includes(model);
   const isGemini = model === 'google/gemini-3-flash';
 
-  if (modelInfoBanana) modelInfoBanana.style.display = isBanana ? '' : 'none';
+  // Toggle model info panels
+  if (modelInfoBanana) modelInfoBanana.style.display = model === 'google/nano-banana-pro' ? '' : 'none';
+  if (modelInfoBanana2) modelInfoBanana2.style.display = model === 'google/nano-banana-2' ? '' : 'none';
   if (modelInfoGemini) modelInfoGemini.style.display = isGemini ? '' : 'none';
 
-  if (bananaInputs) bananaInputs.style.display = isBanana ? '' : 'none';
+  // Toggle input sections
+  if (bananaInputs) bananaInputs.style.display = isImageModel ? '' : 'none';
   if (geminiInputs) geminiInputs.style.display = isGemini ? '' : 'none';
 
-  if (mainGridArea) mainGridArea.style.display = isBanana ? '' : 'none';
+  // Toggle output areas
+  if (mainGridArea) mainGridArea.style.display = isImageModel ? '' : 'none';
   if (textOutputArea) textOutputArea.style.display = isGemini ? '' : 'none';
 
-  if (isBanana) {
+  // nano-banana-2 has fewer params — hide resolution, output_format, safety_filter
+  const extraParams = document.querySelectorAll('#banana-inputs .input-group');
+  extraParams.forEach(group => {
+    const label = group.querySelector('.input-label');
+    if (!label) return;
+    const text = label.textContent.trim();
+    if (['resolution', 'output_format', 'safety_filter_level'].includes(text)) {
+      group.style.display = model === 'google/nano-banana-2' ? 'none' : '';
+    }
+  });
+
+  // Update placeholder
+  if (isImageModel) {
     promptInput.placeholder = 'A text description of the image you want to generate';
   } else if (isGemini) {
     promptInput.placeholder = 'Describe what you want the model to do with the video or text...';

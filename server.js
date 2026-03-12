@@ -30,7 +30,10 @@ app.post('/api/generate', async (req, res) => {
       throw new Error('REPLICATE_API_TOKEN is not configured');
     }
 
-    const { prompt, resolution, aspect_ratio, output_format, safety_filter_level, image_input } = req.body;
+    const { model, prompt, resolution, aspect_ratio, output_format, safety_filter_level, image_input } = req.body;
+
+    const allowedModels = ['google/nano-banana-pro', 'google/nano-banana-2'];
+    const selectedModel = allowedModels.includes(model) ? model : 'google/nano-banana-pro';
 
     // Process image inputs - Replicate accepts data URIs (base64)
     let processedImages = [];
@@ -38,25 +41,29 @@ app.post('/api/generate', async (req, res) => {
       processedImages = image_input.filter(img => img && img.length > 0);
     }
 
-    console.log('Generating image with prompt:', prompt);
+    console.log(`Generating image with ${selectedModel}, prompt:`, prompt);
     console.log('Image inputs count:', processedImages.length);
 
     const requestBody = {
       input: {
         prompt: prompt || 'A beautiful landscape',
-        resolution: resolution || '2K',
-        aspect_ratio: aspect_ratio || '4:3',
-        output_format: output_format || 'jpg',
-        safety_filter_level: safety_filter_level || 'block_only_high'
+        aspect_ratio: aspect_ratio || '1:1',
       }
     };
+
+    // nano-banana-pro supports extra parameters
+    if (selectedModel === 'google/nano-banana-pro') {
+      requestBody.input.resolution = resolution || '2K';
+      requestBody.input.output_format = output_format || 'jpg';
+      requestBody.input.safety_filter_level = safety_filter_level || 'block_only_high';
+    }
 
     // Only add image_input if there are images
     if (processedImages.length > 0) {
       requestBody.input.image_input = processedImages;
     }
 
-    const response = await fetch('https://api.replicate.com/v1/models/google/nano-banana-pro/predictions', {
+    const response = await fetch(`https://api.replicate.com/v1/models/${selectedModel}/predictions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${REPLICATE_API_TOKEN}`,
